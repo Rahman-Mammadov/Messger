@@ -1,0 +1,51 @@
+# Save this file as .github/workflows/apk.yml
+# Compiles the C++ client to WebAssembly, wraps it with Capacitor and publishes an installable APK as a GitHub Release.
+name: build-apk
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Fetch pinned third-party sources
+        run: |
+          mkdir third_party
+          M=https://raw.githubusercontent.com/LoupVaillant/Monocypher/4.0.2/src
+          Q=https://raw.githubusercontent.com/nayuki/QR-Code-generator/v1.8.0/cpp
+          curl -fsSL -o third_party/monocypher.c $M/monocypher.c
+          curl -fsSL -o third_party/monocypher.h $M/monocypher.h
+          curl -fsSL -o third_party/qrcodegen.cpp $Q/qrcodegen.cpp
+          curl -fsSL -o third_party/qrcodegen.hpp $Q/qrcodegen.hpp
+      - name: Compile C++ to WebAssembly
+        run: |
+          mkdir www
+          emcc -O2 -c third_party/monocypher.c -o monocypher.o
+          em++ -std=c++17 -O2 -I. -Ithird_party app.cpp third_party/qrcodegen.cpp monocypher.o \
+            -lembind -lwebsocket.js -sEMBIND_STD_STRING_IS_UTF8=1 -sALLOW_MEMORY_GROWTH=1 -o www/mono.js
+          cp index.html manifest.json icon.svg www/
+      - name: Create Android project
+        run: |
+          npm install
+          npx cap add android
+          npx cap sync android
+      - name: Build APK
+        run: cd android && ./gradlew assembleDebug
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: Mono APK ${{ github.run_number }}
+          files: android/app/build/outputs/apk/debug/app-debug.apk
