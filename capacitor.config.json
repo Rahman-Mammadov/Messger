@@ -1,0 +1,7 @@
+{
+  "appId": "app.mono.messenger",
+  "appName": "Mono",
+  "webDir": "www",
+  "backgroundColor": "#000000",
+  "server": { "androidScheme": "https" }
+}
